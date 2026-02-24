@@ -1,8 +1,0 @@
-# START YOAST BLOCK
-# ---------------------------
-User-agent: *
-Disallow:
-
-Sitemap: https://seasonweb005-hash.github.io/STDENT6/sitemap_index.xml
-# ---------------------------
-# END YOAST BLOCK

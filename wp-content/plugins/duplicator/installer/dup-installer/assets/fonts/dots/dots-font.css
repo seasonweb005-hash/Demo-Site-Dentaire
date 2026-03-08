@@ -1,8 +1,8 @@
 @font-face {
   font-family: 'dotsfont';
-  src: url('https://seasonweb005-hash.github.io/Demo-Site-Dentaire/wp-content/plugins/duplicator/installer/dup-installer/assets/fonts/dots/dotsfont.eot');
-  src: url('https://seasonweb005-hash.github.io/Demo-Site-Dentaire/wp-content/plugins/duplicator/installer/dup-installer/assets/fonts/dots/dotsfont.eot#iefix') format('embedded-opentype'),
-       url('https://seasonweb005-hash.github.io/Demo-Site-Dentaire/wp-content/plugins/duplicator/installer/dup-installer/assets/fonts/dots/dotsfont.woff') format('woff'),
-       url('https://seasonweb005-hash.github.io/Demo-Site-Dentaire/wp-content/plugins/duplicator/installer/dup-installer/assets/fonts/dots/dotsfont.ttf') format('truetype'),
-       url('https://seasonweb005-hash.github.io/Demo-Site-Dentaire/wp-content/plugins/duplicator/installer/dup-installer/assets/fonts/dots/dotsfont.svg#dotsfontregular') format('svg');
+  src: url('dotsfont.eot');
+  src: url('dotsfont.eot?#iefix') format('embedded-opentype'),
+       url('dotsfont.woff') format('woff'),
+       url('dotsfont.ttf') format('truetype'),
+       url('dotsfont.svg#dotsfontregular') format('svg');
 }

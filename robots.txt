@@ -3,6 +3,6 @@
 User-agent: *
 Disallow:
 
-Sitemap: https://seasonweb005-hash.github.io/Demo-Site-Dentaire/sitemap_index.xml
+Sitemap: http://site-dentaire.local/sitemap_index.xml
 # ---------------------------
 # END YOAST BLOCK

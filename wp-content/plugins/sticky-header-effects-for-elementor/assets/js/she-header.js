@@ -5,8 +5,37 @@ $j(document).ready(function () {
     // She header
     sheHeader();
 
+    // Anchor scroll offset — keep in-page links clear of the sticky header.
+    sheAnchorOffset();
+
+    // Back to Top button — inject + wire its own scroll/click handlers.
+    sheBackToTop();
+
+    // Debounce resize: sheHeader() re-runs the full per-header setup and
+    // rebinds every scroll listener, so firing it on every resize pixel is
+    // wasteful (and janky on devices that stream resize events). Run it once
+    // the resize settles instead.
+    var sheResizeTimer;
     $j(window).on('resize', function (e) {
-        sheHeader(e);
+        clearTimeout(sheResizeTimer);
+        sheResizeTimer = setTimeout(function () {
+            sheHeader(e);
+            sheAnchorOffset();
+        }, 150);
+    });
+
+    // The header height changes as it shrinks / becomes sticky, so keep the
+    // anchor offset in sync on scroll. rAF-throttled and cheap: it reads one
+    // height and sets one CSS property.
+    var sheAnchorTicking = false;
+    $j(window).on('scroll', function () {
+        if (!sheAnchorTicking) {
+            sheAnchorTicking = true;
+            window.requestAnimationFrame(function () {
+                sheAnchorOffset();
+                sheAnchorTicking = false;
+            });
+        }
     });
 });
 
@@ -17,13 +46,18 @@ HEADER EFFECTS
 
 
 function sheHeader(e) {
-   
-    var header = $j('.elementor-element.she-header-yes'),
-        container = $j('.she-header-yes .elementor-container, .elementor-element.she-header-yes.e-con'),
-        header_elementor = $j('.elementor-edit-mode .she-header-yes'),
-        header_logo = $j('.she-header-yes .elementor-widget-theme-site-logo img:not(.elementor-widget-n-menu img), .she-header-yes .elementor-widget-image img:not(.elementor-widget-n-menu img)'),
-        header_logo_div = $j('.she-header-yes .elementor-widget-theme-site-logo a::after, .she-header-yes .elementor-widget-image a::after');
-    data_settings = header.data('settings');
+
+    // Iterate each sticky header independently so that multiple sticky headers
+    // each use their OWN settings/scroll-distance instead of all sharing the
+    // first matched header's settings (the "sticks too early" group bug).
+    $j('.elementor-element.she-header-yes').each(function (sheIndex) {
+
+    var header = $j(this),
+        container = header.find('.elementor-container').add(header.filter('.e-con')),
+        header_elementor = header.closest('.elementor-edit-mode').length ? header : $j(),
+        header_logo = header.find('.elementor-widget-theme-site-logo img:not(.elementor-widget-n-menu img), .elementor-widget-image img:not(.elementor-widget-n-menu img)'),
+        header_logo_div = header.find('.elementor-widget-theme-site-logo a, .elementor-widget-image a'),
+        data_settings = header.data('settings');
 
     if (typeof data_settings != 'undefined') {
         var responsive_settings = data_settings["transparent_on"];
@@ -44,7 +78,7 @@ function sheHeader(e) {
         }
     }
 
-    if ($j.inArray(enabled, responsive_settings) != '-1') {
+    if ($j.inArray(enabled, responsive_settings) !== -1) {
 
         var scroll_distance = data_settings["scroll_distance"];
         var she_offset = data_settings["she_offset_top"];
@@ -174,7 +208,7 @@ function sheHeader(e) {
             var mywindow = $j(window),
                 mypos = mywindow.scrollTop();
 
-            mywindow.scroll(function () {
+            mywindow.off('scroll.sheHide' + sheIndex).on('scroll.sheHide' + sheIndex, function () {
                 var sd_hh_s = scroll_distance_hide_header["size"],
                     sd_hh_u = scroll_distance_hide_header["unit"],
                     sd_hh_tablet =
@@ -227,13 +261,6 @@ function sheHeader(e) {
                     }
                 }
 
-                // added option for vh unit
-                //if(sd_hh_u == 'px'){
-                //	sd_hh  = sd_hh_s;
-                //} else {
-                //	sd_hh  = (window.innerHeight)*(sd_hh_s/100);
-                //}
-
                 if (mypos > sd_hh) {
                     if (mywindow.scrollTop() > mypos) {
                         header.addClass("headerup");
@@ -245,11 +272,19 @@ function sheHeader(e) {
             });
         }
 
-        // scroll function
-        $j(window).on("load scroll", function (e) {
+        // scroll function — throttled with requestAnimationFrame so the
+        // heavy per-property style writes below run at most once per frame.
+        var she_scroll_ticking = false;
+        $j(window).off("load.sheScroll" + sheIndex + " scroll.sheScroll" + sheIndex).on("load.sheScroll" + sheIndex + " scroll.sheScroll" + sheIndex, function (e) {
+            if (she_scroll_ticking) {
+                return;
+            }
+            she_scroll_ticking = true;
+            requestAnimationFrame(function () {
+                she_scroll_ticking = false;
             var scroll = $j(window).scrollTop();
 
-            if (header_elementor) {
+            if (header_elementor.length) {
                 header_elementor.css("position", "relative");
             }
 
@@ -299,26 +334,33 @@ function sheHeader(e) {
                 }
             }
 
-            if (scroll >= scroll_distance["size"]) {
+            if (scroll >= sd) {
                 header.removeClass('header').addClass("she-header");
                 header.css("background-color", background);
                 header.css("border-bottom", bottom_border);
 
-                header.css("top", she_offset.size + she_offset.unit);
+                // Multi-Sticky (Pro) manages its own top / width / padding via a
+                // placeholder spacer. Skip Free's geometry writes for those
+                // containers so the two don't fight (cosmetic background/border
+                // above still apply). Pure-Free headers have no
+                // data-she-multi-mode attribute and get the full treatment.
+                if (!header.attr("data-she-multi-mode")) {
+                    header.css("top", she_offset.size + she_offset.unit);
 
-                if (width >= 768) {
-                    if (document.body.classList.contains('admin-bar')) {
-                        header.css("top", (32 + she_offset.size) + she_offset.unit);
+                    if (width >= 783 && document.body.classList.contains('admin-bar')) {
+                        if (she_offset.unit === 'px') {
+                            header.css("top", (32 + she_offset.size) + "px");
+                        } else {
+                            header.css("top", "calc(32px + " + she_offset.size + she_offset.unit + ")");
+                        }
                     }
-                }
 
-                header.css("padding-top", she_padding.top + she_padding.unit);
-                header.css("padding-bottom", she_padding.bottom + she_padding.unit);
-                header.css("padding-left", she_padding.left + she_padding.unit);
-                header.css("padding-right", she_padding.right + she_padding.unit);
-                header.css("width", she_width.size + she_width.unit);
-                // header.attr("style", "width: " + she_width.size + she_width.unit + " !important;");
-                // header.css("width", she_width.size + she_width.unit);
+                    header.css("padding-top", she_padding.top + she_padding.unit);
+                    header.css("padding-bottom", she_padding.bottom + she_padding.unit);
+                    header.css("padding-left", she_padding.left + she_padding.unit);
+                    header.css("padding-right", she_padding.right + she_padding.unit);
+                    header.css("width", she_width.size + she_width.unit);
+                }
 
                 header.removeClass('she-header-transparent-yes');
 
@@ -345,12 +387,14 @@ function sheHeader(e) {
                 header.removeClass("she-header").addClass('header');
                 header.css("background-color", "");
                 header.css("border-bottom", "");
-                header.css("top", "");
-                header.css("padding-top", "");
-                header.css("padding-bottom", "");
-                header.css("padding-left", "");
-                header.css("padding-right", "");
-                header.css("width", "");
+                if (!header.attr("data-she-multi-mode")) {
+                    header.css("top", "");
+                    header.css("padding-top", "");
+                    header.css("padding-bottom", "");
+                    header.css("padding-left", "");
+                    header.css("padding-right", "");
+                    header.css("width", "");
+                }
 
                 if (transparent_header == "yes") {
                     header.addClass('she-header-transparent-yes');
@@ -373,7 +417,159 @@ function sheHeader(e) {
             }
 
 
+            }); // end requestAnimationFrame
         });
     }
 
+    }); // end .each — per sticky-header iteration
+
 };
+
+
+/* ==============================================
+ANCHOR SCROLL OFFSET
+Keeps in-page anchor links (and keyboard focus) clear of the sticky header by
+setting scroll-padding-top on <html> to the live header height. Using the CSS
+scroll-padding mechanism means native #anchor jumps, scrollIntoView() and
+focus scrolling all respect the offset — no click interception needed.
+============================================== */
+function sheAnchorOffset() {
+    var html = document.documentElement;
+
+    // First sticky header that has the anchor-offset option enabled.
+    var $header = $j('.elementor-element.she-header-yes').filter(function () {
+        var s = $j(this).data('settings') || {};
+        return s.she_anchor_offset === 'yes';
+    }).first();
+
+    if (!$header.length) {
+        // Feature off (or no such header) — clear anything we may have set.
+        html.style.scrollPaddingTop = '';
+        html.style.scrollBehavior = '';
+        return;
+    }
+
+    var s = $header.data('settings') || {};
+
+    // Extra offset (SLIDER → { size, unit }).
+    var extra = 0;
+    if (s.she_anchor_offset_extra && s.she_anchor_offset_extra.size !== '' && typeof s.she_anchor_offset_extra.size !== 'undefined') {
+        extra = parseFloat(s.she_anchor_offset_extra.size) || 0;
+    }
+
+    var headerHeight = $header.outerHeight() || 0;
+    html.style.scrollPaddingTop = (headerHeight + extra) + 'px';
+
+    // Smooth scroll — honour the visitor's reduced-motion preference.
+    var prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (s.she_anchor_smooth === 'yes' && !prefersReduced) {
+        html.style.scrollBehavior = 'smooth';
+    } else {
+        html.style.scrollBehavior = '';
+    }
+}
+
+
+/* ==============================================
+BACK TO TOP BUTTON
+Injects a floating button into <body> (NOT the header) that appears after a
+configurable scroll distance and scrolls back to the top on click. It must live
+in <body>, not inside the header: a position:fixed element is positioned
+relative to any ancestor that has a transform, and the header frequently gets
+one (e.g. .headerup's translateY when Hide-on-scroll-down is active), which
+would drag the button off-screen. Styling is read from the element settings and
+applied inline, since the button is outside the Elementor wrapper.
+============================================== */
+function sheBackToTop() {
+    if (document.querySelector('.she-totop-btn')) {
+        return; // already injected.
+    }
+
+    // First sticky header that has the Back to Top option enabled.
+    var $header = $j('.elementor-element.she-header-yes').filter(function () {
+        var s = $j(this).data('settings') || {};
+        return s.she_totop_enable === 'yes';
+    }).first();
+
+    if (!$header.length) {
+        return;
+    }
+
+    var s = $header.data('settings') || {};
+
+    // Scroll distance before the button appears (SLIDER → { size, unit }).
+    var threshold = sheSliderNum(s.she_totop_display_after, 300);
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'she-totop-btn';
+    btn.setAttribute('aria-label', 'Back to top');
+    btn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 8.29l-6.29 6.3 1.41 1.41L12 11.12l4.88 4.88 1.41-1.41z"></path></svg>';
+
+    // Inline styling (button lives in <body>, so Elementor selectors can't
+    // reach it — mirror the announcement bar's approach).
+    var offset = sheSliderNum(s.she_totop_offset, 24);
+    btn.style.bottom = offset + 'px';
+    if (s.she_totop_position === 'left') {
+        btn.style.left = offset + 'px';
+        btn.style.right = 'auto';
+    } else {
+        btn.style.right = offset + 'px';
+        btn.style.left = 'auto';
+    }
+
+    var size = sheSliderNum(s.she_totop_size, 44);
+    btn.style.width = size + 'px';
+    btn.style.height = size + 'px';
+
+    if (s.she_totop_radius && s.she_totop_radius.size !== '' && typeof s.she_totop_radius.size !== 'undefined') {
+        btn.style.borderRadius = s.she_totop_radius.size + ( s.she_totop_radius.unit || 'px' );
+    }
+    if (s.she_totop_bg) {
+        btn.style.backgroundColor = s.she_totop_bg;
+    }
+    if (s.she_totop_icon_color) {
+        btn.style.color = s.she_totop_icon_color;
+    }
+    if (s.she_totop_bg_hover) {
+        btn.style.setProperty('--she-totop-hover', s.she_totop_bg_hover);
+    }
+
+    document.body.appendChild(btn);
+
+    btn.addEventListener('click', function () {
+        var prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        window.scrollTo({ top: 0, behavior: prefersReduced ? 'auto' : 'smooth' });
+    });
+
+    var ticking = false;
+    function toggle() {
+        var y = window.pageYOffset || document.documentElement.scrollTop;
+        if (y > threshold) {
+            btn.classList.add('she-totop-visible');
+        } else {
+            btn.classList.remove('she-totop-visible');
+        }
+        ticking = false;
+    }
+
+    $j(window).on('scroll', function () {
+        if (!ticking) {
+            ticking = true;
+            window.requestAnimationFrame(toggle);
+        }
+    });
+
+    toggle(); // set initial state (e.g. page loaded already scrolled down).
+}
+
+// Read an Elementor SLIDER value ({ size, unit }) as a number, with a fallback.
+function sheSliderNum(ctrl, fallback) {
+    if (ctrl && ctrl.size !== '' && typeof ctrl.size !== 'undefined') {
+        var n = parseFloat(ctrl.size);
+        if (!isNaN(n)) {
+            return n;
+        }
+    }
+    return fallback;
+}
